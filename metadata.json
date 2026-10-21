@@ -1,0 +1,7 @@
+{
+  "name": "Caos en la Ciudad - Retro Pixel Arcade",
+  "description": "Videojuego arcade 2D en pixel art de esquivar objetos ruidosos que caen del cielo para mantener una racha legendaria de puntos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
