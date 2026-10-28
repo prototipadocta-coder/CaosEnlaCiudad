@@ -435,6 +435,7 @@ export const CityChaosGame: React.FC = () => {
 
   // Canvas ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Background images loaded
   const bgImagesRef = useRef<Record<string, HTMLImageElement>>({});
@@ -652,6 +653,57 @@ export const CityChaosGame: React.FC = () => {
 
     sounds.stopMusic(true);
     sounds.startMusic(1, true);
+  };
+
+  // Canvas direct touch gestures for mobile devices
+  const handleCanvasTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (stateRef.current.screen !== 'PLAYING') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+
+    const rect = canvas.getBoundingClientRect();
+    const touchX = touch.clientX - rect.left;
+    if (touchX < rect.width * 0.42) {
+      stateRef.current.keys.left = true;
+      stateRef.current.keys.right = false;
+    } else if (touchX > rect.width * 0.58) {
+      stateRef.current.keys.right = true;
+      stateRef.current.keys.left = false;
+    }
+  };
+
+  const handleCanvasTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (stateRef.current.screen !== 'PLAYING') return;
+    if (!touchStartRef.current) return;
+    const touch = e.touches[0];
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const deltaX = touch.clientX - touchStartRef.current.x;
+
+    if (deltaY < -28) {
+      stateRef.current.keys.up = true;
+    } else if (deltaY > 28) {
+      stateRef.current.keys.down = true;
+    }
+
+    if (Math.abs(deltaX) > 35) {
+      if (deltaX > 0) {
+        stateRef.current.keys.right = true;
+        stateRef.current.keys.left = false;
+      } else {
+        stateRef.current.keys.left = true;
+        stateRef.current.keys.right = false;
+      }
+    }
+  };
+
+  const handleCanvasTouchEnd = () => {
+    touchStartRef.current = null;
+    stateRef.current.keys.left = false;
+    stateRef.current.keys.right = false;
+    stateRef.current.keys.up = false;
+    stateRef.current.keys.down = false;
   };
 
   // Keyboard controls listener
@@ -1941,24 +1993,24 @@ export const CityChaosGame: React.FC = () => {
 
   return (
     <div
-      className={`relative w-full min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-2 sm:p-4 select-none ${
+      className={`relative w-full min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col items-center justify-start sm:justify-center p-1 sm:p-3 md:p-4 select-none touch-manipulation ${
         crtEnabled ? 'crt' : ''
       }`}
     >
       {/* Top Header / Bar */}
-      <header className="w-full max-w-5xl flex items-center justify-between py-2 px-3 bg-slate-900/90 border-2 border-yellow-500/50 rounded-t-lg mb-1 font-pixel text-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-yellow-400 font-bold">CAOS EN LA CIUDAD</span>
+      <header className="w-full max-w-5xl flex items-center justify-between py-1.5 sm:py-2 px-2 sm:px-3 bg-slate-900/90 border-2 border-yellow-500/50 rounded-t-lg mb-1 font-pixel text-[10px] sm:text-xs">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <span className="text-yellow-400 font-bold truncate max-w-[120px] sm:max-w-none">CAOS EN LA CIUDAD</span>
           <span className="text-slate-500 hidden sm:inline">|</span>
-          <span className="text-cyan-400 hidden sm:inline flex items-center gap-1">
-            <MapPin className="w-3 h-3 inline" /> {MAPS[currentMap]?.name} (NIVEL {currentLevel}/10)
+          <span className="text-cyan-400 hidden sm:inline flex items-center gap-1 truncate">
+            <MapPin className="w-3 h-3 inline shrink-0" /> {MAPS[currentMap]?.name} (NV.{currentLevel}/10)
           </span>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Map Selector Button */}
           <button
             onClick={() => setShowMapSelect(true)}
-            className="px-2 py-1 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold border border-yellow-200 text-[10px] flex items-center gap-1 shadow"
+            className="px-1.5 sm:px-2 py-1 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold border border-yellow-200 text-[8px] sm:text-[10px] flex items-center gap-1 shadow active:translate-y-0.5"
             title="Seleccionar entre los 10 mapas"
           >
             <MapPin className="w-3 h-3" />
@@ -1966,14 +2018,14 @@ export const CityChaosGame: React.FC = () => {
           </button>
 
           {/* Coin Vault */}
-          <div className="flex items-center gap-1.5 bg-yellow-950/80 border border-yellow-400 px-2 py-0.5 rounded text-yellow-300">
-            <Coins className="w-3.5 h-3.5 text-yellow-400 animate-spin" />
+          <div className="flex items-center gap-1 bg-yellow-950/80 border border-yellow-400 px-1.5 sm:px-2 py-0.5 rounded text-yellow-300 text-[9px] sm:text-xs">
+            <Coins className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-400 animate-spin" />
             <span className="font-mono font-bold">{coins}</span>
           </div>
 
           <button
             onClick={() => setCrtEnabled(!crtEnabled)}
-            className={`px-2 py-1 border transition-colors ${
+            className={`hidden md:inline-flex px-2 py-1 border transition-colors text-[9px] sm:text-[10px] ${
               crtEnabled
                 ? 'bg-amber-500/20 border-amber-400 text-amber-300'
                 : 'bg-slate-800 border-slate-600 text-slate-400'
@@ -1984,37 +2036,46 @@ export const CityChaosGame: React.FC = () => {
           </button>
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className="p-1 border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200"
+            className="p-1 sm:p-1.5 border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded touch-manipulation"
             title="Alternar Sonido"
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />}
           </button>
         </div>
       </header>
 
-      {/* Main Arcade Cabinet Screen */}
-      <div className="relative w-full max-w-5xl bg-black border-4 border-yellow-500/60 rounded-b-lg shadow-2xl overflow-hidden aspect-[16/9] min-h-[380px] max-h-[580px] flex items-center justify-center">
-        {/* The Game Canvas */}
-        <canvas ref={canvasRef} width={840} height={460} className="w-full h-full object-cover pixelated block" />
+      {/* Main Arcade Cabinet Screen (Strict 16:9 proportional scaling without distorting min-h) */}
+      <div className="relative w-full max-w-5xl bg-black border-2 sm:border-4 border-yellow-500/60 rounded-b-lg shadow-2xl overflow-hidden aspect-[16/9] flex items-center justify-center">
+        {/* The Game Canvas with Direct Touch Gestures for mobile play */}
+        <canvas
+          ref={canvasRef}
+          width={840}
+          height={460}
+          onTouchStart={handleCanvasTouchStart}
+          onTouchMove={handleCanvasTouchMove}
+          onTouchEnd={handleCanvasTouchEnd}
+          onTouchCancel={handleCanvasTouchEnd}
+          className="w-full h-full object-contain sm:object-cover pixelated block touch-none cursor-pointer"
+        />
 
         {/* --- HUD OVERLAY DURING PLAYING & PAUSED --- */}
         {(screen === 'PLAYING' || screen === 'PAUSED') && (
-          <div className="absolute top-0 left-0 right-0 p-3 flex justify-between items-start pointer-events-none font-pixel text-[11px] sm:text-xs z-20">
+          <div className="absolute top-0 left-0 right-0 p-1.5 sm:p-3 flex justify-between items-start pointer-events-none font-pixel text-[8px] sm:text-xs z-20">
             {/* Left HUD: Score, Lives, Speed, Coins */}
-            <div className="flex flex-col gap-1.5 drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">
-              <div className="text-yellow-400 flex items-center gap-2 tracking-wider">
+            <div className="flex flex-col gap-1 drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-yellow-400 flex items-center gap-1 sm:gap-2 tracking-wider">
                 <span>SCORE:</span>
                 <span className="text-white font-mono">{formatScore(score)}</span>
               </div>
 
               {/* LIVES with pixel boy head icons */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <span className="text-red-400">LIVES:</span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1">
                   {[...Array(stateRef.current.player.maxLives)].map((_, idx) => (
                     <div
                       key={idx}
-                      className={`w-5 h-5 border border-yellow-400 rounded-sm flex items-center justify-center text-[10px] ${
+                      className={`w-4 h-4 sm:w-5 sm:h-5 border border-yellow-400 rounded-sm flex items-center justify-center text-[8px] sm:text-[10px] ${
                         idx < lives ? 'bg-amber-400 text-slate-900 font-bold' : 'bg-slate-800 text-slate-600'
                       }`}
                     >
@@ -2025,20 +2086,30 @@ export const CityChaosGame: React.FC = () => {
               </div>
 
               {/* SPEED METER */}
-              <div className="text-emerald-400 flex items-center gap-1.5">
+              <div className="text-emerald-400 flex items-center gap-1">
                 <span>SPEED:</span>
-                <span className="font-mono text-cyan-300 tracking-tighter">{renderSpeedBar()}</span>
+                <span className="font-mono text-cyan-300 tracking-tighter text-[7px] sm:text-[10px]">{renderSpeedBar()}</span>
               </div>
 
               {/* IN-GAME COINS */}
-              <div className="text-yellow-300 flex items-center gap-1.5 text-[10px]">
-                <Coins className="w-3.5 h-3.5 text-yellow-400" />
+              <div className="text-yellow-300 flex items-center gap-1 text-[8px] sm:text-[10px]">
+                <Coins className="w-3 h-3 text-yellow-400" />
                 <span>MONEDAS:</span>
                 <span className="font-mono text-white">{coins}</span>
               </div>
             </div>
 
-            {/* Center HUD: Map & Level banner + Advance Progress to Exit */}
+            {/* Center HUD Mobile Badge */}
+            <div className="flex md:hidden flex-col items-center drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">
+              <span className="text-yellow-300 font-pixel text-[8px] bg-slate-950/85 px-2 py-0.5 border border-yellow-400 rounded">
+                NV.{currentLevel}/10
+              </span>
+              <span className="text-[7px] text-emerald-300 font-mono mt-0.5 bg-slate-900/80 px-1 rounded border border-emerald-500/40">
+                META: {Math.round(Math.min(100, Math.max(0, ((stateRef.current.player.x - 65) / (840 - 65 - 85)) * 100)))}% ➔
+              </span>
+            </div>
+
+            {/* Center HUD Desktop: Map & Level banner + Advance Progress to Exit */}
             <div className="hidden md:flex flex-col items-center drop-shadow-[0_3px_0_#b45309]">
               <div className="flex items-center gap-2">
                 <span className="text-yellow-300 font-pixel tracking-wider text-xs bg-slate-950/85 px-3 py-1 border-2 border-yellow-400 shadow">
@@ -2156,26 +2227,26 @@ export const CityChaosGame: React.FC = () => {
         {/* --- TITLE SCREEN (YELLOW ARCADE LETTERS & VIBRANT STYLING) --- */}
         {screen === 'TITLE' && (
           <div
-            className="absolute inset-0 bg-cover bg-center flex flex-col items-center justify-between p-4 sm:p-6 z-30"
+            className="absolute inset-0 bg-cover bg-center flex flex-col items-center justify-between p-2 sm:p-5 z-30 overflow-y-auto"
             style={{ backgroundImage: `url(${MAP1_SCHOOL_PAVILION})` }}
           >
             <div className="absolute inset-0 bg-slate-950/60" />
 
             {/* Top Bar with Coins & Score */}
-            <div className="relative w-full flex justify-between items-center text-xs font-pixel z-10 text-white drop-shadow-[0_2px_2px_#b45309]">
-              <div className="flex items-center gap-2">
+            <div className="relative w-full flex justify-between items-center text-[9px] sm:text-xs font-pixel z-10 text-white drop-shadow-[0_2px_2px_#b45309]">
+              <div className="flex items-center gap-1.5">
                 <span className="text-yellow-400 font-bold">RÉCORD:</span>
                 <span className="font-mono text-yellow-200">{formatScore(highScore)}</span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 bg-yellow-950/90 border-2 border-yellow-400 px-2.5 py-1 rounded text-yellow-300 shadow">
-                  <Coins className="w-4 h-4 text-yellow-400 animate-spin" />
-                  <span className="font-mono font-bold text-xs">{coins} 🪙</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-yellow-950/90 border-2 border-yellow-400 px-2 py-0.5 rounded text-yellow-300 shadow">
+                  <Coins className="w-3.5 h-3.5 text-yellow-400 animate-spin" />
+                  <span className="font-mono font-bold text-[9px] sm:text-xs">{coins} 🪙</span>
                 </div>
-                <div className="flex items-center gap-2 text-yellow-400 font-bold">
+                <div className="hidden sm:flex items-center gap-1.5 text-yellow-400 font-bold">
                   <span>10 MAPAS:</span>
-                  <span className="text-slate-950 bg-yellow-400 px-1.5 py-0.5 border border-yellow-600 font-bold">
+                  <span className="text-slate-950 bg-yellow-400 px-1 py-0.5 border border-yellow-600 font-bold text-[9px]">
                     8 CAMPUS + 2 INDUSTRIA
                   </span>
                 </div>
@@ -2183,8 +2254,8 @@ export const CityChaosGame: React.FC = () => {
             </div>
 
             {/* VIBRANT GLOWING TITLE: REPLACED BLACK WITH PURE YELLOW & GOLD */}
-            <div className="relative z-10 w-full max-w-xl flex flex-col items-center text-center my-auto">
-              <div className="w-full flex justify-around text-[10px] font-pixel mb-2">
+            <div className="relative z-10 w-full max-w-xl flex flex-col items-center text-center my-auto py-1 sm:py-2">
+              <div className="hidden sm:flex w-full justify-around text-[10px] font-pixel mb-1 sm:mb-2">
                 <span className="bg-yellow-400 text-slate-950 font-bold px-2 py-1 border-2 border-yellow-300 transform -rotate-6 animate-bounce">
                   ¡PÍO!
                 </span>
@@ -2197,13 +2268,13 @@ export const CityChaosGame: React.FC = () => {
               </div>
 
               {/* PURE VIBRANT YELLOW ARCADE TITLE */}
-              <h1 className="text-4xl sm:text-6xl md:text-7xl font-black font-pixel text-yellow-300 arcade-title tracking-wider py-1 drop-shadow-[0_6px_0_#ca8a04]">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-black font-pixel text-yellow-300 arcade-title tracking-wider py-1 drop-shadow-[0_5px_0_#ca8a04]">
                 CAOS EN LA
                 <br />
                 CIUDAD
               </h1>
 
-              <div className="w-full flex justify-around text-[10px] font-pixel mt-2">
+              <div className="hidden sm:flex w-full justify-around text-[10px] font-pixel mt-1 sm:mt-2">
                 <span className="bg-yellow-400 text-slate-950 font-bold px-2 py-1 border-2 border-yellow-300 transform rotate-6">
                   ¡FIIII!
                 </span>
@@ -2216,27 +2287,27 @@ export const CityChaosGame: React.FC = () => {
               </div>
 
               {/* Skin & Music Active indicators */}
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1 border-2 border-yellow-400 text-[10px] font-pixel">
+              <div className="mt-1 sm:mt-2 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1.5 bg-slate-900/90 px-2 sm:px-3 py-0.5 sm:py-1 border border-yellow-400 text-[8px] sm:text-[10px] font-pixel">
                   <span className="text-yellow-400">SKIN:</span>
                   <span className="text-white font-bold">{activeSkin.name}</span>
                   <span className="text-yellow-500">|</span>
                   <span className="text-emerald-400">{activeSkin.perk}</span>
                 </div>
-                <div className="flex items-center gap-1.5 bg-slate-900/90 px-2.5 py-1 border border-cyan-400 text-[9px] font-pixel text-cyan-300">
+                <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 sm:py-1 border border-cyan-400 text-[8px] sm:text-[9px] font-pixel text-cyan-300">
                   <span>🎵</span>
                   <span className="text-yellow-300 font-bold">Pac Baby (Pac-Man CE 2)</span>
                 </div>
               </div>
 
               {/* Difficulty selector */}
-              <div className="flex items-center gap-2 mt-2 bg-slate-900/90 p-1.5 border-2 border-yellow-500 font-pixel text-[10px]">
-                <span className="text-yellow-400 mr-1">DIFICULTAD:</span>
+              <div className="flex items-center gap-1.5 mt-1 sm:mt-2 bg-slate-900/90 p-1 sm:p-1.5 border border-yellow-500 font-pixel text-[8px] sm:text-[10px]">
+                <span className="text-yellow-400 mr-0.5">DIFICULTAD:</span>
                 {(['NORMAL', 'CAOTICO', 'INFALIBLE'] as GameDifficulty[]).map((d) => (
                   <button
                     key={d}
                     onClick={() => setDifficulty(d)}
-                    className={`px-2 py-1 transition-all ${
+                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 transition-all ${
                       difficulty === d
                         ? 'bg-yellow-400 text-slate-950 font-bold border border-yellow-200 shadow'
                         : 'text-yellow-200 hover:text-white'
@@ -2249,54 +2320,48 @@ export const CityChaosGame: React.FC = () => {
             </div>
 
             {/* Menu Buttons (Play, 10 Maps, Shop, How-To, Records) */}
-            <div className="relative z-10 w-full flex flex-wrap items-center justify-center gap-2.5 font-pixel">
+            <div className="relative z-10 w-full flex flex-col sm:flex-row flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 font-pixel">
               <button
                 onClick={() => startGame(difficulty)}
-                className="w-full sm:w-auto px-7 py-3 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 hover:from-yellow-400 hover:to-amber-300 border-4 border-yellow-200 text-slate-950 text-base sm:text-lg font-pixel font-bold tracking-widest uppercase shadow-[0_6px_0_#b45309] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3 cursor-pointer"
+                className="w-full sm:w-auto px-6 py-2.5 sm:py-3 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 hover:from-yellow-400 hover:to-amber-300 border-2 sm:border-4 border-yellow-200 text-slate-950 text-sm sm:text-base font-pixel font-bold tracking-widest uppercase shadow-[0_4px_0_#b45309] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Play className="w-5 h-5 fill-slate-950 text-slate-950" />
+                <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-slate-950 text-slate-950" />
                 ¡JUGAR!
               </button>
 
-              <button
-                onClick={() => setShowMapSelect(true)}
-                className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 border-2 border-cyan-200 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-[0_3px_0_#0891b2]"
-              >
-                <MapPin className="w-4 h-4 text-slate-950" />
-                10 MAPAS PIXELADOS
-              </button>
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap w-full sm:w-auto gap-1.5 sm:gap-2">
+                <button
+                  onClick={() => setShowMapSelect(true)}
+                  className="px-2.5 sm:px-4 py-2 bg-cyan-500 hover:bg-cyan-400 border border-cyan-200 text-slate-950 font-bold text-[9px] sm:text-xs flex items-center justify-center gap-1 transition-all shadow-[0_2px_0_#0891b2] active:translate-y-0.5"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                  <span className="truncate">10 MAPAS</span>
+                </button>
 
-              <button
-                onClick={() => setScreen('SHOP')}
-                className="px-4 py-2.5 bg-yellow-400 hover:bg-yellow-300 border-2 border-yellow-200 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-[0_3px_0_#b45309]"
-              >
-                <ShoppingBag className="w-4 h-4 text-slate-950" />
-                TIENDA ({coins} 🪙)
-              </button>
+                <button
+                  onClick={() => setScreen('SHOP')}
+                  className="px-2.5 sm:px-4 py-2 bg-yellow-400 hover:bg-yellow-300 border border-yellow-200 text-slate-950 font-bold text-[9px] sm:text-xs flex items-center justify-center gap-1 transition-all shadow-[0_2px_0_#b45309] active:translate-y-0.5"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                  <span className="truncate">TIENDA</span>
+                </button>
 
-              <button
-                onClick={() => setScreen('HOW_TO_PLAY')}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border-2 border-yellow-500 text-yellow-300 text-xs flex items-center gap-1.5 transition-all"
-              >
-                <HelpCircle className="w-4 h-4 text-yellow-400" />
-                CÓMO JUGAR
-              </button>
+                <button
+                  onClick={() => setScreen('HOW_TO_PLAY')}
+                  className="px-2.5 sm:px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-yellow-500 text-yellow-300 text-[9px] sm:text-xs flex items-center justify-center gap-1 transition-all active:translate-y-0.5"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                  <span className="truncate">AYUDA</span>
+                </button>
 
-              <button
-                onClick={() => setScreen('SOUNDBOARD')}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border-2 border-yellow-500 text-yellow-300 text-xs flex items-center gap-1.5 transition-all"
-              >
-                <Radio className="w-4 h-4 text-yellow-400" />
-                SONIDOS
-              </button>
-
-              <button
-                onClick={() => setScreen('LEADERBOARD')}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border-2 border-yellow-500 text-yellow-300 text-xs flex items-center gap-1.5 transition-all"
-              >
-                <Trophy className="w-4 h-4 text-yellow-400" />
-                RÉCORDS
-              </button>
+                <button
+                  onClick={() => setScreen('LEADERBOARD')}
+                  className="px-2.5 sm:px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-yellow-500 text-yellow-300 text-[9px] sm:text-xs flex items-center justify-center gap-1 transition-all active:translate-y-0.5"
+                >
+                  <Trophy className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                  <span className="truncate">RÉCORDS</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2986,97 +3051,117 @@ export const CityChaosGame: React.FC = () => {
         )}
       </div>
 
-      {/* --- MOBILE / TOUCH CONTROLS BAR --- */}
-      <div className="w-full max-w-5xl mt-2 p-2 bg-slate-900 border-2 border-yellow-500/50 rounded-b-lg flex items-center justify-between font-pixel text-xs select-none">
-        <div className="flex items-center gap-2">
+      {/* --- MOBILE / TOUCH ARCADE CONTROLS BAR --- */}
+      <div className="w-full max-w-5xl mt-1.5 sm:mt-2.5 p-2 sm:p-3 bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-yellow-500/60 rounded-xl flex items-center justify-between font-pixel text-xs select-none touch-none shadow-xl">
+        {/* D-Pad (Left / Right Movement) */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
           <button
-            onPointerDown={() => {
-              stateRef.current.keys.left = true;
-            }}
-            onPointerUp={() => {
-              stateRef.current.keys.left = false;
-            }}
-            onPointerLeave={() => {
-              stateRef.current.keys.left = false;
-            }}
-            className="w-12 h-12 bg-slate-800 active:bg-yellow-400 active:text-black border-2 border-yellow-500/60 rounded flex items-center justify-center text-yellow-300"
+            onPointerDown={() => { stateRef.current.keys.left = true; }}
+            onPointerUp={() => { stateRef.current.keys.left = false; }}
+            onPointerLeave={() => { stateRef.current.keys.left = false; }}
+            onPointerCancel={() => { stateRef.current.keys.left = false; }}
+            onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.left = true; }}
+            onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.left = false; }}
+            onTouchCancel={(e) => { e.preventDefault(); stateRef.current.keys.left = false; }}
+            className="w-13 h-13 sm:w-16 sm:h-14 bg-slate-800/95 active:bg-yellow-400 active:text-slate-950 border-2 border-yellow-500/80 rounded-xl flex flex-col items-center justify-center text-yellow-300 shadow-[0_3px_0_#334155] active:translate-y-0.5 active:shadow-none transition-all touch-none select-none touch-control-btn cursor-pointer"
             aria-label="Izquierda"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="text-[7px] sm:text-[8px] font-bold mt-0.5">IZQ</span>
           </button>
+
           <button
-            onPointerDown={() => {
-              stateRef.current.keys.right = true;
-            }}
-            onPointerUp={() => {
-              stateRef.current.keys.right = false;
-            }}
-            onPointerLeave={() => {
-              stateRef.current.keys.right = false;
-            }}
-            className="w-12 h-12 bg-slate-800 active:bg-yellow-400 active:text-black border-2 border-yellow-500/60 rounded flex items-center justify-center text-yellow-300"
+            onPointerDown={() => { stateRef.current.keys.right = true; }}
+            onPointerUp={() => { stateRef.current.keys.right = false; }}
+            onPointerLeave={() => { stateRef.current.keys.right = false; }}
+            onPointerCancel={() => { stateRef.current.keys.right = false; }}
+            onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.right = true; }}
+            onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.right = false; }}
+            onTouchCancel={(e) => { e.preventDefault(); stateRef.current.keys.right = false; }}
+            className="w-13 h-13 sm:w-16 sm:h-14 bg-slate-800/95 active:bg-yellow-400 active:text-slate-950 border-2 border-yellow-500/80 rounded-xl flex flex-col items-center justify-center text-yellow-300 shadow-[0_3px_0_#334155] active:translate-y-0.5 active:shadow-none transition-all touch-none select-none touch-control-btn cursor-pointer"
             aria-label="Derecha"
           >
-            <ArrowRight className="w-6 h-6" />
+            <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="text-[7px] sm:text-[8px] font-bold mt-0.5">DER</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Center Mobile Pause & Status */}
+        <div className="flex flex-col items-center justify-center">
           <button
-            onPointerDown={() => {
-              stateRef.current.keys.down = true;
+            onClick={() => {
+              if (stateRef.current.screen === 'PLAYING') {
+                stateRef.current.screen = 'PAUSED';
+                setScreen('PAUSED');
+                sounds.stopMusic();
+              } else if (stateRef.current.screen === 'PAUSED') {
+                stateRef.current.screen = 'PLAYING';
+                setScreen('PLAYING');
+                sounds.startMusic(1 + (stateRef.current.speedLevel - 1) * 0.04);
+              }
             }}
-            onPointerUp={() => {
-              stateRef.current.keys.down = false;
-            }}
-            onPointerLeave={() => {
-              stateRef.current.keys.down = false;
-            }}
-            className="w-12 h-12 bg-slate-800 active:bg-yellow-400 active:text-black border-2 border-yellow-500/60 rounded flex flex-col items-center justify-center text-[9px] text-yellow-300"
-            aria-label="Agacharse"
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-yellow-400 text-yellow-300 active:text-slate-950 border border-yellow-500/70 rounded-lg text-[8px] sm:text-[9px] font-bold shadow active:translate-y-0.5 transition-all"
+            title="Pausar o reanudar partida"
           >
-            <ArrowDown className="w-4 h-4" />
-            <span>ABAJO</span>
+            {screen === 'PAUSED' ? '▶ REANUDAR' : '⏸ PAUSA'}
+          </button>
+          <span className="text-[7px] text-yellow-500/70 mt-1 hidden xs:inline">MANDO TÁCTIL</span>
+        </div>
+
+        {/* Action Buttons Cluster (Slide, Dash, Jump) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Duck / Slide button */}
+          <button
+            onPointerDown={() => { stateRef.current.keys.down = true; }}
+            onPointerUp={() => { stateRef.current.keys.down = false; }}
+            onPointerLeave={() => { stateRef.current.keys.down = false; }}
+            onPointerCancel={() => { stateRef.current.keys.down = false; }}
+            onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.down = true; }}
+            onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.down = false; }}
+            onTouchCancel={(e) => { e.preventDefault(); stateRef.current.keys.down = false; }}
+            className="w-11 h-13 sm:w-13 sm:h-14 bg-sky-950/90 active:bg-cyan-400 active:text-slate-950 border-2 border-cyan-500/80 rounded-xl flex flex-col items-center justify-center text-[7px] sm:text-[8px] text-cyan-300 shadow-[0_3px_0_#0369a1] active:translate-y-0.5 active:shadow-none transition-all touch-none select-none touch-control-btn cursor-pointer"
+            aria-label="Agacharse o deslizarse"
+          >
+            <ArrowDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="font-bold">ABAJO</span>
           </button>
 
+          {/* Dash / Turbo button */}
           <button
-            onPointerDown={() => {
-              stateRef.current.keys.dash = true;
-            }}
-            onPointerUp={() => {
-              stateRef.current.keys.dash = false;
-            }}
-            onPointerLeave={() => {
-              stateRef.current.keys.dash = false;
-            }}
-            className="w-12 h-12 bg-slate-800 active:bg-yellow-400 active:text-black border-2 border-yellow-500/60 rounded flex flex-col items-center justify-center text-[9px] text-yellow-300"
-            aria-label="Dash"
+            onPointerDown={() => { stateRef.current.keys.dash = true; }}
+            onPointerUp={() => { stateRef.current.keys.dash = false; }}
+            onPointerLeave={() => { stateRef.current.keys.dash = false; }}
+            onPointerCancel={() => { stateRef.current.keys.dash = false; }}
+            onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.dash = true; }}
+            onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.dash = false; }}
+            onTouchCancel={(e) => { e.preventDefault(); stateRef.current.keys.dash = false; }}
+            className="w-11 h-13 sm:w-13 sm:h-14 bg-amber-950/90 active:bg-amber-400 active:text-slate-950 border-2 border-amber-500/80 rounded-xl flex flex-col items-center justify-center text-[7px] sm:text-[8px] text-amber-300 shadow-[0_3px_0_#b45309] active:translate-y-0.5 active:shadow-none transition-all touch-none select-none touch-control-btn cursor-pointer"
+            aria-label="Acelerón dash"
           >
-            <Zap className="w-4 h-4" />
-            <span>DASH</span>
+            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
+            <span className="font-bold">DASH</span>
           </button>
 
+          {/* Jump button */}
           <button
-            onPointerDown={() => {
-              stateRef.current.keys.up = true;
-            }}
-            onPointerUp={() => {
-              stateRef.current.keys.up = false;
-            }}
-            onPointerLeave={() => {
-              stateRef.current.keys.up = false;
-            }}
-            className="w-14 h-12 bg-yellow-500 active:bg-yellow-300 active:text-black border-2 border-yellow-200 rounded flex flex-col items-center justify-center text-[10px] text-slate-950 font-bold"
+            onPointerDown={() => { stateRef.current.keys.up = true; }}
+            onPointerUp={() => { stateRef.current.keys.up = false; }}
+            onPointerLeave={() => { stateRef.current.keys.up = false; }}
+            onPointerCancel={() => { stateRef.current.keys.up = false; }}
+            onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.up = true; }}
+            onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.up = false; }}
+            onTouchCancel={(e) => { e.preventDefault(); stateRef.current.keys.up = false; }}
+            className="w-14 h-13 sm:w-18 sm:h-14 bg-gradient-to-b from-yellow-400 to-amber-500 active:from-yellow-300 active:to-yellow-400 text-slate-950 border-2 border-yellow-200 rounded-xl flex flex-col items-center justify-center text-[8px] sm:text-[9px] font-black shadow-[0_4px_0_#b45309] active:translate-y-0.5 active:shadow-none transition-all touch-none select-none touch-control-btn cursor-pointer"
             aria-label="Saltar"
           >
-            <ArrowUp className="w-4 h-4" />
+            <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
             <span>SALTAR</span>
           </button>
         </div>
       </div>
 
-      <footer className="mt-2 text-yellow-500/70 text-[10px] font-pixel text-center">
-        Teclado: [A/D o Flechas] Moverse · [Espacio / W] Saltar · [S] Agacharse · [Shift] Dash · [P] Pausa
+      <footer className="mt-1.5 text-yellow-500/70 text-[8px] sm:text-[10px] font-pixel text-center px-2">
+        📱 Toca la pantalla o usa el mando virtual · [Espacio / Flechas] en teclado
       </footer>
     </div>
   );
