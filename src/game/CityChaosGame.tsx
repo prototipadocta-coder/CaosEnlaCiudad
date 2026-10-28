@@ -385,6 +385,10 @@ export const CityChaosGame: React.FC = () => {
   const [showMapSelect, setShowMapSelect] = useState<boolean>(false);
   const [stats, setStats] = useState({ dodged: 0, nearMisses: 0, powerups: 0, coins: 0 });
 
+  // Squid Game "Luz Roja, Luz Verde" mechanic
+  const [redLightPhase, setRedLightPhase] = useState<'IDLE' | 'WARNING' | 'RED' | 'CAUGHT'>('IDLE');
+  const [redLightTimer, setRedLightTimer] = useState<number>(0);
+
   // Bank & Shop
   const [coins, setCoins] = useState<number>(() => {
     return parseInt(localStorage.getItem('caos_ciudad_coins') || '10', 10);
@@ -495,6 +499,14 @@ export const CityChaosGame: React.FC = () => {
       up: false,
       down: false,
       dash: false,
+    },
+    redLight: {
+      phase: 'IDLE' as 'IDLE' | 'WARNING' | 'RED' | 'CAUGHT',
+      timer: 0,
+      hasTriggeredThisLevel: false,
+      willTriggerThisLevel: true,
+      targetTriggerTime: 7.0,
+      gracePeriod: 0,
     },
   });
 
@@ -612,6 +624,14 @@ export const CityChaosGame: React.FC = () => {
     s.lastCoinSpawnTime = 0;
     s.gameTime = 0;
     s.screenShake = 0;
+    s.redLight = {
+      phase: 'IDLE',
+      timer: 0,
+      hasTriggeredThisLevel: false,
+      willTriggerThisLevel: true,
+      targetTriggerTime: 6.5 + Math.random() * 3.5,
+      gracePeriod: 0,
+    };
 
     setScreen('PLAYING');
     setDifficulty(diff);
@@ -627,6 +647,8 @@ export const CityChaosGame: React.FC = () => {
     setIsShieldActive(false);
     setIsSpeedBoostActive(false);
     setShowMapSelect(false);
+    setRedLightPhase('IDLE');
+    setRedLightTimer(0);
 
     sounds.stopMusic(true);
     sounds.startMusic(1, true);
@@ -932,6 +954,19 @@ export const CityChaosGame: React.FC = () => {
       const nextMapId = MAP_ORDER[nextMapIndex];
       s.currentMap = nextMapId;
 
+      // Schedule "Luz Roja, Luz Verde" event every 1-2 levels
+      const willTriggerThisLevel = s.currentLevel % 2 === 0 || Math.random() < 0.7;
+      s.redLight = {
+        phase: 'IDLE',
+        timer: 0,
+        hasTriggeredThisLevel: false,
+        willTriggerThisLevel,
+        targetTriggerTime: 6.0 + Math.random() * 4.0,
+        gracePeriod: 0,
+      };
+      setRedLightPhase('IDLE');
+      setRedLightTimer(0);
+
       setCurrentLevel(s.currentLevel);
       setCurrentMap(nextMapId);
 
@@ -1069,26 +1104,177 @@ export const CityChaosGame: React.FC = () => {
         s.noiseLevel = Math.min(100, Math.max(baseNoise, s.noiseLevel + dt * (1.1 + s.currentLevel * 0.25)));
         setNoiseLevel(Math.round(s.noiseLevel));
 
-        // PROGRESSIVE SPAWN RATE: Level 1 spawns slowly (~2.2s); Level 10 spawns rapidly (~0.35s)!
-        const baseSpawnInterval = Math.max(0.35, 2.2 - s.currentLevel * 0.19 - (s.difficulty === 'CAOTICO' ? 0.3 : 0));
-        if (s.gameTime - s.lastSpawnTime > baseSpawnInterval) {
+        // PROGRESSIVE SPAWN RATE (INCREASED FREQUENCY OF FALLING NOISE OBJECTS FOR EXTRA RETRO CHALLENGE)
+        const difficultyBonus = s.difficulty === 'CAOTICO' ? 0.25 : s.difficulty === 'INFALIBLE' ? 0.35 : 0;
+        const baseSpawnInterval = Math.max(0.25, 1.4 - s.currentLevel * 0.11 - difficultyBonus);
+        if (s.gameTime - s.lastSpawnTime > baseSpawnInterval && s.redLight.phase !== 'RED') {
           spawnHazard(w);
-          // On later levels (4+), occasionally drop pairs of items
-          if (s.currentLevel >= 4 && Math.random() < 0.25 + s.currentLevel * 0.04) {
-            setTimeout(() => spawnHazard(w), 160);
+
+          // Double drop: starting at level 2, frequent staggered hazard pairs
+          const doubleChance = 0.35 + s.currentLevel * 0.04 + (s.difficulty === 'CAOTICO' ? 0.15 : 0);
+          if (s.currentLevel >= 2 && Math.random() < doubleChance) {
+            setTimeout(() => spawnHazard(w), 140);
           }
+
+          // Triple drop: on level 5+, occasional 3-hazard wave barrage
+          const tripleChance = 0.2 + (s.currentLevel - 5) * 0.05 + (s.difficulty === 'CAOTICO' ? 0.1 : 0);
+          if (s.currentLevel >= 5 && Math.random() < tripleChance) {
+            setTimeout(() => spawnHazard(w), 280);
+          }
+
           s.lastSpawnTime = s.gameTime;
         }
 
         // Spawning Bonuses
-        const bonusInterval = 8.5;
-        if (s.gameTime - s.lastBonusTime > bonusInterval) {
+        const bonusInterval = 8.0;
+        if (s.gameTime - s.lastBonusTime > bonusInterval && s.redLight.phase !== 'RED') {
           spawnBonus(w);
           s.lastBonusTime = s.gameTime;
         }
 
-        // --- PLAYER UPDATE ---
+        // --- PLAYER UPDATE & LUZ ROJA / VERDE STATE MACHINE ---
         const p = s.player;
+        const rl = s.redLight;
+
+        // Process Luz Roja state transitions
+        if (rl.phase === 'IDLE') {
+          if (rl.willTriggerThisLevel && !rl.hasTriggeredThisLevel && s.levelTimer >= rl.targetTriggerTime) {
+            rl.phase = 'WARNING';
+            rl.timer = 2.0;
+            setRedLightPhase('WARNING');
+            setRedLightTimer(2.0);
+            sounds.playSquidDollChime();
+            sounds.playRedLightWarning();
+            s.floatingTexts.push({
+              id: Math.random().toString(),
+              text: '⚠️ ¡ATENTO! ¡LUZ ROJA EN CAMINO! ⚠️',
+              x: w / 2,
+              y: 95,
+              color: '#facc15',
+              alpha: 2.0,
+              scale: 1.4,
+            });
+          }
+        } else if (rl.phase === 'WARNING') {
+          rl.timer -= dt;
+          setRedLightTimer(Math.max(0, rl.timer));
+          if (rl.timer <= 0) {
+            rl.phase = 'RED';
+            rl.timer = 3.6;
+            rl.gracePeriod = 0.22; // Brief grace period for inertia
+            setRedLightPhase('RED');
+            setRedLightTimer(3.6);
+            sounds.playRedLightWarning();
+            s.screenShake = 0.35;
+            s.floatingTexts.push({
+              id: Math.random().toString(),
+              text: '🔴 ¡¡LUZ ROJA!! ¡QUÉDATE QUIETO! 🔴',
+              x: w / 2,
+              y: 95,
+              color: '#ef4444',
+              alpha: 2.2,
+              scale: 1.6,
+            });
+          }
+        } else if (rl.phase === 'RED') {
+          rl.timer -= dt;
+          if (rl.gracePeriod > 0) {
+            rl.gracePeriod -= dt;
+          }
+          setRedLightTimer(Math.max(0, rl.timer));
+
+          // Check if player moves during Red Light!
+          if (rl.gracePeriod <= 0) {
+            const isPressingKey = s.keys.left || s.keys.right || s.keys.up || s.keys.down || s.keys.dash;
+            const hasSignificantSpeed = Math.abs(p.vx) > 18 || Math.abs(p.vy) > 25 || !p.isGrounded;
+
+            if (isPressingKey || hasSignificantSpeed) {
+              // CAUGHT MOVING DURING RED LIGHT!
+              // "si se mueve que empieza a hacer mucho ruido y caiga muchisimos objetos, y haya mucho ruido"
+              rl.phase = 'CAUGHT';
+              rl.timer = 3.5;
+              rl.hasTriggeredThisLevel = true;
+              setRedLightPhase('CAUGHT');
+              setRedLightTimer(3.5);
+
+              // Maximize noise to 100 dB and trigger massive screen shake
+              s.noiseLevel = 100;
+              setNoiseLevel(100);
+              s.screenShake = 1.4;
+
+              // Blare intense alarms, klaxon, siren, airhorn, jackhammer
+              sounds.playCaughtAlarm();
+              sounds.playSiren();
+              sounds.playAirHorn();
+              sounds.playJackhammer();
+
+              s.floatingTexts.push({
+                id: Math.random().toString(),
+                text: '🚨 ¡¡MOVIMIENTO DETECTADO!! 🚨',
+                x: p.x,
+                y: p.y - 65,
+                color: '#ef4444',
+                alpha: 2.5,
+                scale: 1.7,
+              });
+              s.floatingTexts.push({
+                id: Math.random().toString(),
+                text: '💥 ¡¡AVALANCHA DE RUIDO Y OBJETOS!! 💥',
+                x: w / 2,
+                y: 110,
+                color: '#f97316',
+                alpha: 2.2,
+                scale: 1.5,
+              });
+
+              // Rapid deluge avalanche of 18 noise hazard objects raining down
+              for (let k = 0; k < 18; k++) {
+                setTimeout(() => {
+                  if (stateRef.current.screen === 'PLAYING') {
+                    spawnHazard(w);
+                    if (k % 4 === 0) {
+                      sounds.playAirHorn();
+                      stateRef.current.screenShake = Math.max(stateRef.current.screenShake, 0.45);
+                    }
+                  }
+                }, k * 115);
+              }
+            }
+          }
+
+          if (rl.timer <= 0 && rl.phase === 'RED') {
+            // Player successfully stayed still!
+            rl.phase = 'IDLE';
+            rl.hasTriggeredThisLevel = true;
+            setRedLightPhase('IDLE');
+            setRedLightTimer(0);
+
+            sounds.playPowerup();
+            s.score += 1500 * s.multiplier;
+            setScore(s.score);
+            addCoins(5);
+            s.noiseLevel = Math.max(10, s.noiseLevel - 35);
+            setNoiseLevel(Math.round(s.noiseLevel));
+
+            s.floatingTexts.push({
+              id: Math.random().toString(),
+              text: '🟢 ¡LUZ VERDE! ¡SILENCIO EXITOSO! +1500',
+              x: w / 2,
+              y: 95,
+              color: '#22c55e',
+              alpha: 2.2,
+              scale: 1.6,
+            });
+          }
+        } else if (rl.phase === 'CAUGHT') {
+          rl.timer -= dt;
+          setRedLightTimer(Math.max(0, rl.timer));
+          if (rl.timer <= 0) {
+            rl.phase = 'IDLE';
+            setRedLightPhase('IDLE');
+            setRedLightTimer(0);
+          }
+        }
         const playerSpeed = p.speedBoostTimer > 0 ? 390 : 270;
 
         const dashUpgrade = upgrades.find((u) => u.id === 'DASH_COOLDOWN');
@@ -1664,6 +1850,52 @@ export const CityChaosGame: React.FC = () => {
         }
       );
 
+      // --- 8.5. RENDER LUZ ROJA / VERDE FULL-CANVAS SCREEN OVERLAYS ---
+      const rlState = s.redLight;
+      if (rlState.phase === 'WARNING') {
+        ctx.save();
+        const warnAlpha = 0.16 + Math.sin(s.gameTime * 10) * 0.08;
+        ctx.fillStyle = `rgba(245, 158, 11, ${warnAlpha})`;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      } else if (rlState.phase === 'RED') {
+        ctx.save();
+        // Red screen tint wash
+        const redAlpha = 0.40 + Math.sin(s.gameTime * 9) * 0.12;
+        ctx.fillStyle = `rgba(220, 38, 38, ${redAlpha})`;
+        ctx.fillRect(0, 0, w, h);
+
+        // Menacing red alert border vignette
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 14;
+        ctx.strokeRect(0, 0, w, h);
+
+        // Squid Game surveillance scanning laser beam sweeping vertically
+        const beamY = (s.gameTime * 220) % h;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(0, beamY, w, 4);
+
+        // Red spotlight focused on player to highlight stillness
+        const spotGrad = ctx.createRadialGradient(p.x, p.y - 20, 10, p.x, p.y - 20, 95);
+        spotGrad.addColorStop(0, 'rgba(255, 255, 255, 0.28)');
+        spotGrad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+        ctx.fillStyle = spotGrad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - 20, 95, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (rlState.phase === 'CAUGHT') {
+        ctx.save();
+        const strobe = Math.floor(s.gameTime * 16) % 2 === 0 ? 'rgba(239, 68, 68, 0.58)' : 'rgba(0, 0, 0, 0.38)';
+        ctx.fillStyle = strobe;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(0, 0, w, h);
+        ctx.restore();
+      }
+
       // --- 9. RENDER FLOATING TEXT POPUPS ---
       for (let tIdx = s.floatingTexts.length - 1; tIdx >= 0; tIdx--) {
         const ft = s.floatingTexts[tIdx];
@@ -1874,6 +2106,50 @@ export const CityChaosGame: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* SQUID GAME "LUZ ROJA, LUZ VERDE" HUD ALERT BANNER */}
+        {screen === 'PLAYING' && redLightPhase !== 'IDLE' && (
+          <div className="absolute top-16 sm:top-14 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center max-w-[92%]">
+            {redLightPhase === 'WARNING' && (
+              <div className="bg-amber-500/95 text-slate-950 px-3 sm:px-5 py-1.5 border-4 border-yellow-300 font-pixel text-[11px] sm:text-xs font-bold shadow-[0_0_25px_rgba(245,158,11,0.9)] flex items-center gap-2 rounded animate-bounce text-center">
+                <span className="text-sm sm:text-base animate-pulse">🟡</span>
+                <span>¡ATENTO! LUZ ROJA EN {redLightTimer.toFixed(1)}s</span>
+                <span className="text-[9px] bg-slate-950 text-amber-300 px-2 py-0.5 rounded border border-yellow-400">
+                  ¡PREPÁRATE A FRENAR!
+                </span>
+              </div>
+            )}
+
+            {redLightPhase === 'RED' && (
+              <div className="bg-red-600/95 text-white px-4 sm:px-6 py-2 border-4 border-red-300 font-pixel text-xs sm:text-sm font-bold shadow-[0_0_35px_rgba(239,68,68,1)] flex flex-col items-center gap-1 rounded animate-pulse text-center">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 bg-yellow-300 rounded-full animate-ping inline-block" />
+                  <span className="text-yellow-300 tracking-wider">🔴 ¡¡LUZ ROJA!! ¡QUÉDATE QUIETO! 🔴</span>
+                </div>
+                <div className="text-[10px] sm:text-xs text-white/95 tracking-wide flex flex-wrap justify-center items-center gap-2">
+                  <span>¡NO TE MUEVAS!</span>
+                  <span className="bg-black/85 text-yellow-300 px-2.5 py-0.5 border border-yellow-400 font-mono text-xs sm:text-sm">
+                    {redLightTimer.toFixed(1)}s
+                  </span>
+                  <span>¡SI TE MUEVES CAERÁ UNA AVALANCHA!</span>
+                </div>
+              </div>
+            )}
+
+            {redLightPhase === 'CAUGHT' && (
+              <div className="bg-red-950/95 text-yellow-300 px-4 sm:px-6 py-2 border-4 border-yellow-400 font-pixel text-xs sm:text-sm font-bold shadow-[0_0_40px_rgba(239,68,68,1)] flex flex-col items-center gap-1 rounded animate-bounce text-center">
+                <div className="flex items-center gap-2 text-red-500 text-sm sm:text-base animate-pulse">
+                  <span>🚨</span>
+                  <span className="text-yellow-400 font-black">¡¡MOVIMIENTO DETECTADO!!</span>
+                  <span>🚨</span>
+                </div>
+                <div className="text-[10px] text-red-200">
+                  ¡¡AVALANCHA DE RUIDO Y OBJETOS AL MÁXIMO (100 dB)!!
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -1091,6 +1091,82 @@ class SoundEngine {
     });
   }
 
+  // Squid Game Doll Chime / Luz Verde announcement ("Luz verde, luz roja...")
+  public playSquidDollChime() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const melody = [
+      { f: 523.25, d: 0.12 }, // C5
+      { f: 587.33, d: 0.12 }, // D5
+      { f: 659.25, d: 0.12 }, // E5
+      { f: 523.25, d: 0.12 }, // C5
+      { f: 659.25, d: 0.18 }, // E5
+      { f: 783.99, d: 0.22 }, // G5
+      { f: 659.25, d: 0.16 }, // E5
+      { f: 523.25, d: 0.30 }, // C5
+    ];
+    let curTime = t;
+    melody.forEach((n) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(n.f, curTime);
+      gain.gain.setValueAtTime(0.28 * this.sfxVolume, curTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, curTime + n.d);
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(curTime);
+      osc.stop(curTime + n.d + 0.02);
+      curTime += n.d * 0.95;
+    });
+  }
+
+  // Sharp warning buzzer before Red Light activates
+  public playRedLightWarning() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [0, 0.14, 0.28].forEach((off) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, t + off);
+      gain.gain.setValueAtTime(0.3 * this.sfxVolume, t + off);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + off + 0.1);
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(t + off);
+      osc.stop(t + off + 0.11);
+    });
+  }
+
+  // Intense Klaxon Siren when caught moving during Red Light
+  public playCaughtAlarm() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    // Rapid alternating siren warbles
+    for (let i = 0; i < 4; i++) {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      const startT = t + i * 0.22;
+      osc.frequency.setValueAtTime(1100, startT);
+      osc.frequency.linearRampToValueAtTime(600, startT + 0.1);
+      osc.frequency.linearRampToValueAtTime(1100, startT + 0.2);
+      gain.gain.setValueAtTime(0.42 * this.sfxVolume, startT);
+      gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.21);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(startT);
+      osc.stop(startT + 0.22);
+    }
+  }
+
   // --- ORIGINAL BACKGROUND MUSIC AUDIO PLAYBACK (PAC BABY - PAC-MAN CE 2) ---
 
   public startMusic(speedMultiplier: number = 1, forceRestart: boolean = false) {
